@@ -21,15 +21,11 @@ from urllib.parse import urlparse, urlunparse
 from scrapy import Spider
 from scrapy.http import Response, Request
 
-from .args import options
 from .item import ArticleItem
 from .cloud import CloudInterface
 from .extractor import Extractor
 
 logger = logging.getLogger(__name__)
-
-
-SCRAPE_DUPLICATES = options.allow_duplicates in ['True', '1']
 
 
 class SingleSpider(Spider):
@@ -90,7 +86,7 @@ class SingleSpider(Spider):
 
     def __init__(self, *args, **kwargs):
         self.cloud = None
-        self._scraped_indexes = None
+        self._scraped_indexes = []
         for field in [self._link_extractor,
                       self._header_extractor,
                       self._tags_extractor,
@@ -170,7 +166,7 @@ class SingleSpider(Spider):
             url = urlunparse([self._scheme, self._start_domain, path,
                               None, None, None])
         index = self._convert_path_to_index(path)
-        if index not in self._scraped_indexes or SCRAPE_DUPLICATES:
+        if index not in self._scraped_indexes:
             yield Request(url=url,
                           callback=self.parse_article,
                           meta={'index': index})

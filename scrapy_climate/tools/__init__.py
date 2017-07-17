@@ -3,7 +3,8 @@ from .extractor import (
     TagExtractor,
     LinkExtractor,
     HeaderExtractor,
-    TextExtractor
+    TextExtractor,
+    MediaCounter,
 )
 from .args import options
 from .storage import StorageSession, StorageMaster

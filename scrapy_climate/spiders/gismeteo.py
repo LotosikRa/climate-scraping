@@ -5,6 +5,7 @@ from scrapy_climate.tools import (
     TagExtractor,
     LinkExtractor,
     TextExtractor,
+    MediaCounter,
 )
 from scrapy_climate.tools import SingleSpider
 
@@ -13,24 +14,46 @@ class GismeteoTextExtractor(TextExtractor):
 
     def extract_from(self, selector):
         selected = self.select_from(selector)
+        # FIXME: div inside div
+        #if selected.css('div:nth-child(2) > div::attr(id)').extract_first() == 'fb-root':
+        #    selected = selected.css('div. > div')
         elements = []
+        media_counter = MediaCounter()
         for div in selected:
             link = div.css('div > a::text')
-            picture = div.css('div > div.pic-descr::text')
+            photo = div.css('div > div.pic-descr::text')
+            video = div.css('div > div.pic')
+            iframe = div.css('div > iframe')
+            text = div.css('div::text').extract_first()
             if link:
                 link_extracted = link.extract_first()
                 href_extracted = div.css('div > a::attr(href)').extract_first()
+                string = ''
                 for item in div.css('::text').extract():
                     if item == link_extracted:
-                        elements.append(' [{0}]({1}) '.format(
-                            link_extracted,
-                            href_extracted, ))
+                        string += self.hyperlink_format.format(
+                            text=link_extracted,
+                            link=href_extracted, )
                     else:
-                        elements.append(item)
-            elif picture:
-                elements.append('<photo>')
+                        string += item
+                elements.append(string)
+            elif photo:
+                media_counter.add_photo()
+                elements.append(self.photo_format)
+            elif video:
+                media_counter.add_video()
+                elements.append(self.video_format)
+            elif iframe:
+                media_counter.add_iframe()
+            elif self.is_trash(text):
+                pass
+            elif text:
+                elements.append(text)
             else:
-                elements.append(div.css('div::text').extract_first())
+                raise ValueError('Uncategorised block: {}'.format(div.extract()))
+        counter = media_counter.as_string()
+        if counter:
+            elements.append(counter)
         formatted = self._convert(elements)
         return formatted
 

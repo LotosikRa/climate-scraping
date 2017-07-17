@@ -93,6 +93,62 @@ class Extractor:
         raise NotImplementedError
 
 
+class MediaCounter:
+
+    open_sequense = '<'
+    close_sequense = '>'
+    separator = '; '
+
+    photo_fmt = 'photo: {}'
+    video_fmt = 'video: {}'
+    iframe_fmt = 'iframe: {}'
+
+    def __init__(self):
+        self.video = 0
+        self.photo = 0
+        self.iframe = 0
+        self.string = ''
+
+    @property
+    def order(self):
+        return [
+            [self.photo, self.photo_fmt],
+            [self.video, self.video_fmt],
+            [self.iframe, self.iframe_fmt],
+        ]
+
+    def add_video(self):
+        self.video += 1
+
+    def add_photo(self):
+        self.photo += 1
+
+    def add_iframe(self):
+        self.iframe += 1
+
+    def to_list(self):
+        sequence = [i[1].format(i[0]) if i[0] > 0 else None for i in self.order]
+        for string in sequence:
+            if string:
+                yield string
+
+    def as_string(self) -> str:
+        sequence = list(self.to_list())
+        lenght = len(sequence)
+        string = ''
+        if lenght == 0:
+            return string
+        else:
+            string += self.open_sequense
+            string += sequence[0]
+            if lenght > 1:
+                for i in sequence[1:]:
+                    string += self.separator + i
+            string += self.close_sequense
+        self.string = string
+        return string
+
+
 # ===================
 #  actual extractors
 # ===================
@@ -163,10 +219,10 @@ class TagExtractor(HeaderExtractor):
             return found_list[found_indexes[0]]
         elif len(found_indexes) > 1:
             raise RuntimeError('Found more than one "{name}" containers: {lst}'
-                               .format(lst=found_list, name=self._name))
+                               .format(lst=found_list, name=self.name))
         else:
             raise RuntimeError('Not found any "{}" containers.'
-                               .format(self._name))
+                               .format(self.name))
 
     def extract_from(self, selector: SelectorList) -> str:
         extracted = self.select_from(selector).extract()
@@ -190,6 +246,22 @@ class TextExtractor(TagExtractor):
         ('\n', ' '),
     ]
     allowed_ends = ['div']
+
+    hyperlink_format = '[{text}]({link})'
+    photo_format = '<photo>'
+    video_format = '<video>'
+    iframe_format = '<iframe>'
+
+    def is_trash(self, string: str) -> bool:
+        lst = [' ']
+        for i, _ in self.replace_with:
+            lst.append(i)
+        for i in lst:
+            string.replace(i, '')
+        if string == '':
+            return True
+        else:
+            return False
 
     def extract_from(self, selector: SelectorList):
         """

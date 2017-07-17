@@ -153,11 +153,12 @@ class ArgumentsMaster:
         )
 
     @property
-    def allow_duplicates(self) -> str:
+    def use_cloud(self) -> str:
         return self.get_value(
-            'ALLOW_DUPLICATES',
-            default='False',
-            required=False
+            'USE_CLOUD',
+            default='True',
+            required=False,
+            args_only=True,
         )
 
     @property

@@ -7,17 +7,18 @@ from .spider import SingleSpider
 from .storage import StorageMaster, StorageSession
 
 
-def _check_need_in_storage() -> bool:
-    option = options.enable_gspread
+def _to_boolean(option: str) -> bool:
     if option in ['True', '1']:
         return True
     elif option in ['False', '0']:
         return False
     else:
-        raise RuntimeError('Cannot recognise is need to use `storage`: {}'
+        raise RuntimeError('Cannot recognise argument value: {}'
                            .format(option))
 
-ENABLE_STORAGE = _check_need_in_storage()
+
+ENABLE_STORAGE = _to_boolean(options.enable_gspread)
+USE_CLOUD = _to_boolean(options.use_cloud)
 
 
 class StoragePipeline(object):
@@ -27,9 +28,9 @@ class StoragePipeline(object):
         self.cloud = None
 
     def open_spider(self, spider: SingleSpider):
-        self.cloud = CloudInterface()
-        spider.connect_cloud(self.cloud)
-
+        if USE_CLOUD:
+            self.cloud = CloudInterface()
+            spider.connect_cloud(self.cloud)
         if ENABLE_STORAGE:
             self.storage_session = StorageSession(
                 StorageMaster().get_worksheet_by_spider(spider), spider)
