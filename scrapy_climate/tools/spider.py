@@ -35,6 +35,7 @@ from .extractor import (
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 LOCAL_EMPTY_INDEX = 'LocalEmptyIndex'
 
@@ -165,6 +166,7 @@ class SingleSpider(Spider):
         :param response: `Scrapy.http.Response` instance from "article page"
         :return: yields `ArticleItem` instance
         """
+        logger.debug('Started extracting from {}'.format(response.url))
         order = [
             ('text', self._text_extractor),
             ('header', self._header_extractor),

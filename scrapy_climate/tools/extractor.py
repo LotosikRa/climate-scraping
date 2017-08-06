@@ -3,7 +3,7 @@ import logging
 from scrapy.selector import SelectorList
 
 from .parser import ESCAPE_CHAR_PAIRS, Parser, MediaCounter, ElementsChain
-from .middleware import Middleware, MiddlewaresContainer, select, childes
+from .middleware import HTMLMiddleware, MiddlewaresContainer, select
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class Extractor:
     replace_with = ESCAPE_CHAR_PAIRS
     allowed_ends = []
 
-    exception_template = '!!! Error {type}: {message} !!!'
+    exception_template = '!!! {type}: {message} !!!'
 
     def _format_exception(self, exception: Exception):
         print(exception)
@@ -254,10 +254,11 @@ class TextExtractor(JoinableExtractor):
             raise RuntimeError('Given `media_counter` is not inherited from '
                                '`parser.MediaCounter` class.')
         self.middlewares = MiddlewaresContainer([
-            Middleware(select, (string_css_selector, ), {})
+            HTMLMiddleware(select, args=(string_css_selector,), )
         ])
-        for middleware in middlewares:
-                self.middlewares.append(middleware)
+        if middlewares:
+            for middleware in middlewares:
+                    self.middlewares.append(middleware)
         self.elements_chain_class = elements_chain_class
         self.media_counter_class = media_counter_class
         self.parser_class = parser_class
