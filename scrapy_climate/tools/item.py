@@ -14,5 +14,6 @@ class ArticleItem(Item):
     url = Field()
     text = Field()
 
-    # not public fields
+    # non-public fields
     index = Field()
+    date=Field()

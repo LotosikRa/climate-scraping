@@ -53,6 +53,7 @@ class StorageMaster:
 
 class StorageSession:
 
+    empty_cell = '-----'
     open_template = options.storage_open_format
     close_template = options.storage_close_format
     date_format = options.storage_datefmt
@@ -98,24 +99,28 @@ class StorageSession:
 
     def _add_starting_row(self):
         self._worksheet.append_row(Row(
-            url='-----',
+            url=self.empty_cell,
             header=self.open_template.format(
                 date=self._datetime(),
                 name=self._spider.name,
             ),
             tags=self._job_url,
-            text='-----',
+            text=self.empty_cell,
+            date=self.empty_cell,
+            index=self.empty_cell,
         ).as_list())
 
     def _add_close_row(self):
         self._rows.append(Row(
-            url='-----',
+            url=self.empty_cell,
             header=self.close_template.format(
                 date=self._datetime(),
                 count=str(len(self._rows)),
             ),
             tags=self._job_url,
-            text='-----',
+            text=self.empty_cell,
+            date=self.empty_cell,
+            index=self.empty_cell,
         ).as_list())
 
     def _datetime(self):
@@ -125,19 +130,23 @@ class StorageSession:
 class Row:
     """ Place to configure fields order in a table"""
 
-    columns_order = ['url', 'header', 'tags', 'text']
+    columns_order = ['url', 'header', 'tags', 'text', 'date', 'index']
     hyperlink_template = '=HYPERLINK("{link}";"{text}")'
     format_hyperlinks = False
+    empty_cell = '- - -'
 
     def __init__(self, item: scrapy.item.Item or dict = None,
-                 url: str = None,
-                 header: str = None,
-                 tags: str = None,
-                 text: str = None):
+                 url: str = empty_cell,
+                 header: str = empty_cell,
+                 tags: str = empty_cell,
+                 text: str = empty_cell,
+                 date: str = empty_cell,
+                 index: str = empty_cell):
         if item is not None:
             self.item = item
         else:
-            self.item = dict(url=url, header=header, tags=tags, text=text)
+            self.item = dict(url=url, header=header, tags=tags,
+                             text=text, date=date, index=index,)
 
     def as_list(self) -> list:
         lst = []
