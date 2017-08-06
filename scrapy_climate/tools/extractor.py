@@ -1,4 +1,12 @@
+import logging
+
 from scrapy.selector import SelectorList
+
+from .parser import ESCAPE_CHAR_PAIRS, Parser, MediaCounter, ElementsChain
+from .middleware import Middleware, MiddlewaresContainer, select, childes
+
+
+logger = logging.getLogger(__name__)
 
 
 class Extractor:
@@ -11,35 +19,16 @@ class Extractor:
 
     name = None
 
-    replace_with = []
+    replace_with = ESCAPE_CHAR_PAIRS
     allowed_ends = []
 
-    def __init__(self, string_css_selector: str =None,
-                 list_of_string_css_selectors: list =None,
-                 **kwargs):
-        """
-        :param string_css_selector: string that can be used for
-        `scrapy.selector.SelectorList.css` method
-        :param list_of_string_css_selectors: list of string as
-        `string_css_selector`
-        :param kwargs: `dict` object
-        """
-        if string_css_selector:
-            self._check_string_selector(string_css_selector)
-            self.list_of_string_selectors = [string_css_selector]
-        elif list_of_string_css_selectors:
-            for item in list_of_string_css_selectors:
-                self._check_string_selector(item)
-            self.list_of_string_selectors = list_of_string_css_selectors
-        self.kwargs = self.parse_kwargs(kwargs)
+    exception_template = '!!! Error {type}: {message} !!!'
 
-    def parse_kwargs(self, kwargs: dict) -> dict:
-        """
-        Parses input keyword arguments to use them in the future.
-        :param kwargs: `dict` object
-        :return: `dict` object
-        """
-        return kwargs
+    def _format_exception(self, exception: Exception):
+        print(exception)
+        logger.exception(exception)
+        return self.exception_template.format(
+            type=type(exception), message=exception.args)
 
     def _check_string_selector(self, string_selector: str):
         """
@@ -57,7 +46,7 @@ class Extractor:
                 break
         else:
             raise ValueError(
-                'Given `string_selector` (="{}") argument'
+                'Given `string_selector` (="{}") argument isn\' valid.'
                 .format(string_selector))
 
     def _format(self, text: str) -> str:
@@ -92,97 +81,20 @@ class Extractor:
         """
         raise NotImplementedError
 
-
-class MediaCounter:
-
-    open_sequense = '<'
-    close_sequense = '>'
-    separator = '; '
-
-    photo_fmt = 'photo: {}'
-    video_fmt = 'video: {}'
-    iframe_fmt = 'iframe: {}'
-
-    def __init__(self):
-        self.video = 0
-        self.photo = 0
-        self.iframe = 0
-        self.string = ''
-
-    @property
-    def order(self):
-        return [
-            [self.photo, self.photo_fmt],
-            [self.video, self.video_fmt],
-            [self.iframe, self.iframe_fmt],
-        ]
-
-    def add_video(self):
-        self.video += 1
-
-    def add_photo(self):
-        self.photo += 1
-
-    def add_iframe(self):
-        self.iframe += 1
-
-    def to_list(self):
-        sequence = [i[1].format(i[0]) if i[0] > 0 else None for i in self.order]
-        for string in sequence:
-            if string:
-                yield string
-
-    def as_string(self) -> str:
-        sequence = list(self.to_list())
-        lenght = len(sequence)
-        string = ''
-        if lenght == 0:
-            return string
-        else:
-            string += self.open_sequense
-            string += sequence[0]
-            if lenght > 1:
-                for i in sequence[1:]:
-                    string += self.separator + i
-            string += self.close_sequense
-        self.string = string
+    def safe_extract_from(self, selector: SelectorList) -> str:
+        try:
+            string = self.extract_from(selector)
+        except Exception as exc:
+            string = self._format_exception(exc)
         return string
 
 
-# ===================
-#  actual extractors
-# ===================
-class HeaderExtractor(Extractor):
-    """
-    Expects to be used for extracting header from "article" page.
-    Must take only one string or list with only one string.
-    """
-
-    name = 'header'
-
-    allowed_ends = ['::text']
-
-    def select_from(self, selector: SelectorList) -> SelectorList:
-        return selector.css(self.list_of_string_selectors[0])
-
-    def extract_from(self, selector: SelectorList) -> str:
-        extracted = self.select_from(selector).extract_first()
-        formatted = self._format(extracted)
-        return formatted
-
-
-class TagExtractor(HeaderExtractor):
-    """
-    Expects to be used for extracting tags from "article" page.
-    Can take list with many strings.
-    """
-
-    name = 'tag'
+class JoinableExtractor(Extractor):
 
     default = ''
     separator = ', '
 
-    def _convert(self, lst: list) -> str:
+    def join(self, lst: list) -> str:
         """
         Converts given list of strings to string by formatting every item in
         the `lst` list and joining them with `self.separator`
@@ -198,91 +110,30 @@ class TagExtractor(HeaderExtractor):
                 string += self.separator + self._format(item)
         return string
 
+
+class MultipleExtractor(Extractor):
+
+    def __init__(self, list_of_string_css_selectors: list):
+        for string_selector in list_of_string_css_selectors:
+            self._check_string_selector(string_selector)
+        self.list_of_string_selectors = list_of_string_css_selectors
+
+
+class SingleExtractor(Extractor):
+
+    def __init__(self, string_css_selector: str =None):
+        self._check_string_selector(string_css_selector)
+        self.string_selector = string_css_selector
+
     def select_from(self, selector: SelectorList) -> SelectorList:
-        """
-        Instead of parent `HeaderExtactor` we expect that it can be many
-        selectors given at initialising, but method must return selector only
-        from one place.
-        :exception RuntimeError: if it is no entry for selectors from
-        `self.list_of_string_selectors` or it is more then one entry.
-        """
-        found_list = []
-        found_indexes = []
-        for i, string_selector in enumerate(self.list_of_string_selectors):
-            selected = selector.css(string_selector)
-            if selected:
-                found_indexes.append(i)
-                found_list.append(selected)
-            else:
-                found_list.append(None)
-        if len(found_indexes) == 1:
-            return found_list[found_indexes[0]]
-        elif len(found_indexes) > 1:
-            raise RuntimeError('Found more than one "{name}" containers: {lst}'
-                               .format(lst=found_list, name=self.name))
-        else:
+        selected = selector.css(self.string_selector)
+        if not selected:
             raise RuntimeError('Not found any "{}" containers.'
                                .format(self.name))
-
-    def extract_from(self, selector: SelectorList) -> str:
-        extracted = self.select_from(selector).extract()
-        converted = self._convert(extracted)
-        return converted
+        return selected
 
 
-class TextExtractor(TagExtractor):
-    """
-    Expects to be used for extracting text from "article" page.
-    Can take list with many strings.
-    """
-
-    name = 'text'
-
-    separator = '\n'
-    replace_with = [
-        ('\xa0', ' '),
-        ('\r\n\t', ''),
-        ('\t', ' '),
-        ('\n', ' '),
-    ]
-    allowed_ends = ['div']
-
-    hyperlink_format = '[{text}]({link})'
-    photo_format = '<photo>'
-    video_format = '<video>'
-    iframe_format = '<iframe>'
-
-    def is_trash(self, string: str) -> bool:
-        lst = [' ']
-        for i, _ in self.replace_with:
-            lst.append(i)
-        for i in lst:
-            string.replace(i, '')
-        if string == '':
-            return True
-        else:
-            return False
-
-    def extract_from(self, selector: SelectorList):
-        """
-        In this case it can be multiple child HTML tags and method must iterate
-        over them and check if there can be hyperlinks, photos etc.
-        """
-        raise NotImplementedError()
-
-
-class LinkExtractor(Extractor):
-    """
-    The only extractor that returns generator instead `str` object.
-    Expects to be used for extracting hyperlinks ro "article" pages from
-    "news-list" page.
-    Can take list with many strings.
-    """
-
-    name = 'link'
-
-    replace_with = []
-    allowed_ends = ['a::attr(href)']
+class GeneratorExtractor(Extractor):
 
     def select_from(self, selector: SelectorList):
         """
@@ -291,7 +142,14 @@ class LinkExtractor(Extractor):
         `self.list_of_string_selectors` fails
         :return: generator of `Selector` objects
         """
-        for string_selector in self.list_of_string_selectors:
+        if hasattr(self, 'list_of_string_selectors'):
+            list_of_string_selectors = self.list_of_string_selectors
+        elif hasattr(self, 'string_selector'):
+            list_of_string_selectors = [self.string_selector]
+        else:
+            raise AttributeError(
+                'Can not found any attributes with string selectors.')
+        for string_selector in list_of_string_selectors:
             selected = selector.css(string_selector)
             if selected:
                 for item in selected:
@@ -309,3 +167,128 @@ class LinkExtractor(Extractor):
         """
         for selected in self.select_from(selector):
             yield self._format(selected.extract())
+
+
+# ===================
+#  actual extractors
+# ===================
+class LinkExtractor(MultipleExtractor, GeneratorExtractor):
+    """
+    The only extractor that returns generator instead `str` object.
+    Expects to be used for extracting hyperlinks ro "article" pages from
+    "news-list" page.
+    Can take list with many strings.
+    """
+
+    name = 'link'
+
+    replace_with = []
+    allowed_ends = ['a::attr(href)']
+
+
+class HeaderExtractor(SingleExtractor):
+    """
+    Expects to be used for extracting header from "article" page.
+    Must take only one string or list with only one string.
+    """
+
+    name = 'header'
+
+    allowed_ends = ['::text']
+
+    def select_from(self, selector: SelectorList) -> SelectorList:
+        return selector.css(self.string_selector)
+
+    def extract_from(self, selector: SelectorList) -> str:
+        extracted = self.select_from(selector).extract_first()
+        formatted = self._format(extracted)
+        return formatted
+
+
+class TagsExtractor(SingleExtractor, JoinableExtractor):
+    """
+    Expects to be used for extracting tags from "article" page.
+    Can take list with many strings.
+    """
+
+    name = 'tag'
+
+    allowed_ends = ['::text']
+
+    def extract_from(self, selector: SelectorList) -> str:
+        extracted = self.select_from(selector).extract()
+        converted = self.join(extracted)
+        return converted
+
+
+class TextExtractor(JoinableExtractor):
+    """
+    Expects to be used for extracting text from "article" page.
+    Can take list with many strings.
+    """
+
+    name = 'text'
+
+    separator = '\n'
+    allowed_ends = ['']
+
+    def __init__(self, string_css_selector: str,
+                 parser_class: type,
+                 middlewares: list=None,
+                 media_counter_class: type=None,
+                 elements_chain_class: type=None,):
+        self.string_selector = string_css_selector
+
+        # Parser stuff
+        if not isinstance(parser_class(), Parser):
+            raise RuntimeError('Given `parser_class` is not inherited from '
+                               '`parser.Parser` class.')
+        if not media_counter_class:
+            media_counter_class = MediaCounter
+        if not elements_chain_class:
+            elements_chain_class = ElementsChain
+        if not isinstance(elements_chain_class(), ElementsChain):
+            raise RuntimeError('Given `elements_chain` is not inherited from '
+                               '`parser.ElementsChain` class.')
+        if not isinstance(media_counter_class(), MediaCounter):
+            raise RuntimeError('Given `media_counter` is not inherited from '
+                               '`parser.MediaCounter` class.')
+        self.middlewares = MiddlewaresContainer([
+            Middleware(select, (string_css_selector, ), {})
+        ])
+        for middleware in middlewares:
+                self.middlewares.append(middleware)
+        self.elements_chain_class = elements_chain_class
+        self.media_counter_class = media_counter_class
+        self.parser_class = parser_class
+
+    def select_from(self, selector: SelectorList):
+        return self.middlewares.process(selector)
+
+    def extract_from(self, selector: SelectorList) -> str:
+        selected = self.select_from(selector)
+        elements = self.parse_selected(selected)
+        formatted = self.join(elements)
+        return formatted
+
+    def parse_selected(self, selector_list: SelectorList) -> list:
+        parser = self._open_parser(
+            parser_class=self.parser_class,
+            media_counter_class=self.media_counter_class,
+            elements_chain_class=self.elements_chain_class,
+        )
+        for selector in selector_list:
+            parser.safe_parse(selector)
+        return self._close_parser(parser)
+
+    @staticmethod
+    def _open_parser(parser_class: type, media_counter_class: type,
+                     elements_chain_class: type) -> Parser:
+        return parser_class(
+            media_counter=media_counter_class(),
+            elements_chain=elements_chain_class(),
+        )
+
+    @staticmethod
+    def _close_parser(parser) -> list:
+        return parser.close()

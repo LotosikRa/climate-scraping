@@ -1,11 +1,11 @@
 from .spider import SingleSpider
 from .extractor import (
-    TagExtractor,
+    TagsExtractor,
     LinkExtractor,
     HeaderExtractor,
     TextExtractor,
-    MediaCounter,
 )
+from .parser import Parser
 from .args import options
 from .storage import StorageSession, StorageMaster
 from .cloud import CloudInterface

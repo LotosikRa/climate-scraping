@@ -16,6 +16,7 @@
 """
 
 import logging
+from datetime import datetime
 from urllib.parse import urlparse, urlunparse
 
 from scrapy import Spider
@@ -23,9 +24,37 @@ from scrapy.http import Response, Request
 
 from .item import ArticleItem
 from .cloud import CloudInterface
-from .extractor import Extractor
+from .parser import Parser, MediaCounter, ElementsChain
+from .extractor import (
+    Extractor,
+    LinkExtractor,
+    TextExtractor,
+    HeaderExtractor,
+    TagsExtractor,
+)
+
 
 logger = logging.getLogger(__name__)
+
+LOCAL_EMPTY_INDEX = 'LocalEmptyIndex'
+
+
+class ExtractManager:
+
+    def __init__(self, link_extractor: LinkExtractor =None,
+                 header_extractor: HeaderExtractor =None,
+                 text_extractor: TextExtractor =None,
+                 tags_extractor: TagsExtractor =None, ):
+        self._check_type('link_extractor', link_extractor, LinkExtractor)
+        self._check_type('header_extractor', header_extractor, HeaderExtractor)
+        self._check_type('text_extractor', text_extractor, TextExtractor)
+        self._check_type('tags_extractor', tags_extractor, TagsExtractor)
+
+    def _check_type(self, name: str, variable, parent: type):
+        if not isinstance(variable, parent):
+            raise TypeError('Passed `{}` variable must be `{}` type.'
+                            .format(name, parent.__class__))
+        self.__setattr__(name, variable)
 
 
 class SingleSpider(Spider):
@@ -82,7 +111,10 @@ class SingleSpider(Spider):
     _tags_extractor = None
     _text_extractor = None
 
+    _extract_manager = None
+
     _article_item_class = ArticleItem
+    _date_format_template = '%d %B %Y'
 
     def __init__(self, *args, **kwargs):
         self.cloud = None
@@ -133,16 +165,17 @@ class SingleSpider(Spider):
         :param response: `Scrapy.http.Response` instance from "article page"
         :return: yields `ArticleItem` instance
         """
-        text = self._text_extractor.extract_from(response)
-        header = self._header_extractor.extract_from(response)
-        tags = self._tags_extractor.extract_from(response)
+        order = [
+            ('text', self._text_extractor),
+            ('header', self._header_extractor),
+            ('tags', self._tags_extractor),
+        ]
+        kwargs = {}
+        for name, extractor in order:
+            extracted = extractor.safe_extract_from(response)
+            kwargs[name] = extracted
         # produce item
-        yield from self._yield_article_item(
-            response,
-            text=text,
-            header=header,
-            tags=tags,
-        )
+        yield from self._yield_article_item(response, **kwargs)
 
     # ============
     #  generators
@@ -178,7 +211,7 @@ class SingleSpider(Spider):
         :param response: `scrapy.http.Response` from "news-list page"
         :return: yield `scrapy.http.Request` instance
         """
-        for link in self._link_extractor.extract_from(response):
+        for link in self._link_extractor.safe_extract_from(response):
             yield from self._yield_request(link)
 
     def _yield_article_item(self, response: Response, **kwargs):
@@ -189,9 +222,15 @@ class SingleSpider(Spider):
         :param kwargs: fields for `ArticleItem`
         :return: yields `ArticleItem` instance
         """
+        try:
+            index = response.meta['index']
+        except KeyError:
+            # case when used with `crawl` command
+            index = LOCAL_EMPTY_INDEX
         yield self._article_item_class(
             url=response.url,
-            index=response.meta['index'],
+            index=index,
+            date=self._format_date(),
             **kwargs
         )
 
@@ -210,9 +249,29 @@ class SingleSpider(Spider):
             self._check_field_implementation('_start_domain'),
             self._check_field_implementation('_start_path')), ]
 
+    @property
+    def extract_manager(self):
+        if isinstance(self._extract_manager, ExtractManager):
+            return self._extract_manager
+        elif all([self._text_extractor, self._tags_extractor,
+                self._header_extractor, self._link_extractor]):
+            return ExtractManager(
+                link_extractor=self._link_extractor,
+                header_extractor=self._header_extractor,
+                tags_extractor=self._tags_extractor,
+                text_extractor=self._text_extractor,
+            )
+        else:
+            raise RuntimeError('nor `_extract_manager` nor `_*_extractor` '
+                               'are not defined.')
+
     # =========
     #  helpers
     # =========
+    def _format_date(self):
+        now = datetime.now()
+        return now.strftime(self._date_format_template)
+
     def _convert_path_to_index(self, path: str) -> str:
         """
         Extracts "index" (see entities in the `TemplateSpider` class'
