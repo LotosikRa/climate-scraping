@@ -9,7 +9,44 @@ from .middleware import HTMLMiddleware, MiddlewaresContainer, select
 logger = logging.getLogger(__name__)
 
 
+# names
+TEXT = 'text'
+HEADER = 'header'
+TAGS = 'tags'
+LINK = 'link'
+NAMES = {TEXT, HEADER, TAGS, LINK}
+
+
 class Extractor:
+
+    name = None
+
+    exception_template = '!!! {type}: {message} !!!'
+
+    def _format_exception(self, exception: Exception):
+        logger.exception(str(exception))
+        return self.exception_template.format(
+            type=type(exception), message=exception.args)
+
+    def extract_from(self, obj: object) -> str:
+        """
+        Extracts data from given selector using initial arguments.
+        Must used from `spider.SingleSpider`.
+        :param selector: `SelectorList` object from what method selects and
+        extracts data.
+        :return: `str` object
+        """
+        raise NotImplementedError
+
+    def safe_extract_from(self, obj: object) -> str:
+        try:
+            string = self.extract_from(obj)
+        except Exception as exc:
+            string = self._format_exception(exc)
+        return string
+
+
+class CSSExtractor(Extractor):
     """
     Extracts data from HTML using `scrapy.selector.SelectorList.css` method.
     It's more useful than old `ParseMixin` class implementation because
@@ -17,18 +54,8 @@ class Extractor:
     every spider.
     """
 
-    name = None
-
     replace_with = ESCAPE_CHAR_PAIRS
     allowed_ends = []
-
-    exception_template = '!!! {type}: {message} !!!'
-
-    def _format_exception(self, exception: Exception):
-        print(exception)
-        logger.exception(exception)
-        return self.exception_template.format(
-            type=type(exception), message=exception.args)
 
     def _check_string_selector(self, string_selector: str):
         """
@@ -71,25 +98,8 @@ class Extractor:
         """
         raise NotImplementedError
 
-    def extract_from(self, selector: SelectorList) -> str:
-        """
-        Extracts data from given selector using initial arguments.
-        Must used from `spider.SingleSpider`.
-        :param selector: `SelectorList` object from what method selects and
-        extracts data.
-        :return: `str` object
-        """
-        raise NotImplementedError
 
-    def safe_extract_from(self, selector: SelectorList) -> str:
-        try:
-            string = self.extract_from(selector)
-        except Exception as exc:
-            string = self._format_exception(exc)
-        return string
-
-
-class JoinableExtractor(Extractor):
+class JoinableExtractor(CSSExtractor):
 
     default = ''
     separator = ', '
@@ -111,7 +121,7 @@ class JoinableExtractor(Extractor):
         return string
 
 
-class MultipleExtractor(Extractor):
+class MultipleCSSExtractor(CSSExtractor):
 
     def __init__(self, list_of_string_css_selectors: list):
         for string_selector in list_of_string_css_selectors:
@@ -119,7 +129,9 @@ class MultipleExtractor(Extractor):
         self.list_of_string_selectors = list_of_string_css_selectors
 
 
-class SingleExtractor(Extractor):
+class SingleCSSExtractor(CSSExtractor):
+
+    raise_on_missed = True
 
     def __init__(self, string_css_selector: str =None):
         self._check_string_selector(string_css_selector)
@@ -128,12 +140,17 @@ class SingleExtractor(Extractor):
     def select_from(self, selector: SelectorList) -> SelectorList:
         selected = selector.css(self.string_selector)
         if not selected:
-            raise RuntimeError('Not found any "{}" containers.'
-                               .format(self.name))
+            msg = 'Not found any "{}" containers.'.format(self.name)
+            if self.raise_on_missed:
+                #logger.error(msg)
+                raise RuntimeError(msg)
+            else:
+                logger.warning(msg)
+                return SelectorList([])
         return selected
 
 
-class GeneratorExtractor(Extractor):
+class GeneratorCSSExtractor(CSSExtractor):
 
     def select_from(self, selector: SelectorList):
         """
@@ -169,16 +186,26 @@ class GeneratorExtractor(Extractor):
             yield self._format(selected.extract())
 
 
+class VoidExtractor(Extractor):
+    """
+    Extractor that returns "void".
+    Returns `''` string for `extract_from` method.
+    Returns `SelectorList()` object for `select_from` method.
+    """
+
+    def __init__(self, name: str):
+        if name not in NAMES:
+            raise RuntimeError('Wrong `name` passed: "{}"'.format(name))
+        self.name = name
+
+    def extract_from(self, selector: SelectorList) -> str:
+        return ''
+
+
 # ===================
 #  actual extractors
 # ===================
-class LinkExtractor(MultipleExtractor, GeneratorExtractor):
-    """
-    The only extractor that returns generator instead `str` object.
-    Expects to be used for extracting hyperlinks ro "article" pages from
-    "news-list" page.
-    Can take list with many strings.
-    """
+class LinkExtractor(MultipleCSSExtractor, GeneratorCSSExtractor):
 
     name = 'link'
 
@@ -186,11 +213,7 @@ class LinkExtractor(MultipleExtractor, GeneratorExtractor):
     allowed_ends = ['a::attr(href)']
 
 
-class HeaderExtractor(SingleExtractor):
-    """
-    Expects to be used for extracting header from "article" page.
-    Must take only one string or list with only one string.
-    """
+class HeaderExtractor(SingleCSSExtractor):
 
     name = 'header'
 
@@ -205,15 +228,11 @@ class HeaderExtractor(SingleExtractor):
         return formatted
 
 
-class TagsExtractor(SingleExtractor, JoinableExtractor):
-    """
-    Expects to be used for extracting tags from "article" page.
-    Can take list with many strings.
-    """
+class TagsExtractor(SingleCSSExtractor, JoinableExtractor):
 
     name = 'tag'
-
     allowed_ends = ['::text']
+    raise_on_missed = False
 
     def extract_from(self, selector: SelectorList) -> str:
         extracted = self.select_from(selector).extract()
@@ -222,15 +241,10 @@ class TagsExtractor(SingleExtractor, JoinableExtractor):
 
 
 class TextExtractor(JoinableExtractor):
-    """
-    Expects to be used for extracting text from "article" page.
-    Can take list with many strings.
-    """
 
     name = 'text'
 
     separator = '\n'
-    allowed_ends = ['']
 
     def __init__(self, string_css_selector: str,
                  parser_class: type,
@@ -291,5 +305,5 @@ class TextExtractor(JoinableExtractor):
         )
 
     @staticmethod
-    def _close_parser(parser) -> list:
+    def _close_parser(parser: Parser) -> list:
         return parser.close()

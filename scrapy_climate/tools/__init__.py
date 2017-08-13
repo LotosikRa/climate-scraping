@@ -5,8 +5,9 @@ from .extractor import (
     LinkExtractor,
     HeaderExtractor,
     TextExtractor,
+    VoidExtractor,
 )
-from .middleware import SMV, childes
+from .middleware import SMW, childes
 from .parser import Parser
 from .spider import SingleSpider
 from .storage import StorageSession, StorageMaster

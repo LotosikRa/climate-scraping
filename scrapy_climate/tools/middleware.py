@@ -83,7 +83,7 @@ class SelectMiddleware(Middleware):
 
     _input_type = SelectorList
     _output_type = SelectorList
-SMV = SelectMiddleware
+SMW = SelectMiddleware
 
 
 class HTMLMiddleware(Middleware):
@@ -118,6 +118,8 @@ def childes(selector: SelectorList,
     ) + ':nth-child({i})'
     if no_selector_string:
         string_selector_template += ':not({})'.format(no_selector_string)
+    # starting the iteration
+    # FIXME: first - collect all childes, second - select
     while True:
         child = selector.css(string_selector_template.format(i=i))
         i += 1

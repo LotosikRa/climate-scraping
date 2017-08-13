@@ -26,13 +26,13 @@ from .item import ArticleItem
 from .cloud import CloudInterface
 from .parser import Parser, MediaCounter, ElementsChain
 from .extractor import (
-    Extractor,
+    CSSExtractor,
     LinkExtractor,
     TextExtractor,
     HeaderExtractor,
     TagsExtractor,
+    VoidExtractor,
 )
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -52,7 +52,11 @@ class ExtractManager:
         self._check_type('tags_extractor', tags_extractor, TagsExtractor)
 
     def _check_type(self, name: str, variable, parent: type):
-        if not isinstance(variable, parent):
+        if isinstance(variable, VoidExtractor):
+            logger.warning(
+                '`{}` initialised with `extractor.VoidExtractor` '
+                'class and will not return any usefull data.'.format(name))
+        elif not isinstance(variable, parent):
             raise TypeError('Passed `{}` variable must be `{}` type.'
                             .format(name, parent.__class__))
         self.__setattr__(name, variable)
@@ -120,11 +124,8 @@ class SingleSpider(Spider):
     def __init__(self, *args, **kwargs):
         self.cloud = None
         self._scraped_indexes = []
-        for field in [self._link_extractor,
-                      self._header_extractor,
-                      self._tags_extractor,
-                      self._text_extractor]:
-            assert isinstance(field, Extractor)
+        # call it to check
+        self.extract_manager
         super().__init__(*args, **kwargs)
 
     def connect_cloud(self, cloud: CloudInterface):
@@ -142,9 +143,7 @@ class SingleSpider(Spider):
         # the traffic
         self._scraped_indexes = list(cloud.fetch_week_indexes())
         # log it
-        msg = 'Scraped indexes: ' + self._scraped_indexes.__repr__()
-        logger.debug(msg)
-        print('DEBUG ::', msg)
+        logger.info('Scraped indexes: ' + self._scraped_indexes.__repr__())
 
     # =================
     #  "parse" methods
@@ -166,7 +165,7 @@ class SingleSpider(Spider):
         :param response: `Scrapy.http.Response` instance from "article page"
         :return: yields `ArticleItem` instance
         """
-        logger.debug('Started extracting from {}'.format(response.url))
+        logger.info('Started extracting from {}'.format(response.url))
         order = [
             ('text', self._text_extractor),
             ('header', self._header_extractor),
@@ -253,10 +252,11 @@ class SingleSpider(Spider):
 
     @property
     def extract_manager(self):
+        extractors = [self._text_extractor, self._tags_extractor,
+                self._header_extractor, self._link_extractor]
         if isinstance(self._extract_manager, ExtractManager):
             return self._extract_manager
-        elif all([self._text_extractor, self._tags_extractor,
-                self._header_extractor, self._link_extractor]):
+        elif all(extractors):
             return ExtractManager(
                 link_extractor=self._link_extractor,
                 header_extractor=self._header_extractor,
