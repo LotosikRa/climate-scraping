@@ -15,9 +15,12 @@
     * callback - method which takes request and yields another request or item
 """
 
+import random
 import logging
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
+
+import requests
 
 from scrapy import Spider
 from scrapy.http import Response, Request
@@ -49,6 +52,27 @@ class IndexesContainer(frozenset):
         return ', '.join(self)
 
 
+class ProxyManager:
+
+    list_of_proxies_url = 'https://proxy-spider.com/api/proxies.example.txt'
+
+    def __init__(self):
+        response = requests.get(self.list_of_proxies_url)
+        if response.status_code != 200:
+            raise RuntimeError('Can not retrieve list of proxies')
+        self.text = response.content.decode('utf-8')
+        self.proxies = tuple(self.parse(self.text))
+
+    @classmethod
+    def parse(cls, text):
+        yield from text.split('\n')
+
+    @property
+    def random(self):
+        i = random.randint(0, len(self.proxies)-1)
+        return self.proxies[i]
+
+
 class ExtractManager:
 
     def __init__(self, link_extractor: LinkExtractor =None,
@@ -64,7 +88,7 @@ class ExtractManager:
         if isinstance(variable, VoidExtractor):
             logger.warning(
                 '`{}` initialised with `extractor.VoidExtractor` '
-                'class and will not return any usefull data.'.format(name))
+                'class and will not return any useful data.'.format(name))
         elif not isinstance(variable, parent):
             raise TypeError('Passed `{}` variable must be `{}` type.'
                             .format(name, parent.__class__))
@@ -127,11 +151,17 @@ class SingleSpider(Spider):
     _article_item_class = ArticleItem
     _date_format_template = '%d %B %Y'
 
+    _use_proxy = False
+    _default_request_meta = {}
+
     def __init__(self, *args, **kwargs):
         self.cloud = None
         self._scraped_indexes = frozenset()
         # call it to check
         self.extract_manager
+        # check proxy
+        if self._use_proxy:
+            self.proxy_manager = ProxyManager()
         super().__init__(*args, **kwargs)
 
     def connect_cloud(self, cloud: CloudInterface):
@@ -207,9 +237,11 @@ class SingleSpider(Spider):
                               None, None, None])
         index = self._convert_path_to_index(path)
         if index not in self._scraped_indexes:
+            meta = self.request_meta
+            meta.update({'index': index})
             yield Request(url=url,
                           callback=self.parse_article,
-                          meta={'index': index})
+                          meta=meta)
 
     def _yield_requests_from_response(self, response: Response):
         """
@@ -249,12 +281,20 @@ class SingleSpider(Spider):
     def allowed_domains(self):
         return [self._check_field_implementation('_start_domain'), ]
 
-    @property
-    def start_urls(self):
-        return ['{}://{}/{}'.format(
+    def start_requests(self):
+        url = '{}://{}/{}'.format(
             self._check_field_implementation('_scheme'),
             self._check_field_implementation('_start_domain'),
-            self._check_field_implementation('_start_path')), ]
+            self._check_field_implementation('_start_path'))
+        request = Request(url, callback=self.parse, meta=self.request_meta)
+        yield request
+
+    @property
+    def request_meta(self):
+        meta = self._default_request_meta.copy()
+        if self._use_proxy:
+            meta.update({'proxy': self.proxy_manager.random})
+        return meta
 
     @property
     def extract_manager(self):
