@@ -220,10 +220,18 @@ class HeaderExtractor(SingleCSSExtractor):
     allowed_ends = ['::text']
 
     def select_from(self, selector: SelectorList) -> SelectorList:
-        return selector.css(self.string_selector)
+        selected = selector.css(self.string_selector)
+        if not selected:
+            raise RuntimeError('Failed to select.')
+        return selected
 
     def extract_from(self, selector: SelectorList) -> str:
-        extracted = self.select_from(selector).extract_first()
+        extracted_list = self.select_from(selector).extract()
+        # `extracted_list` list must not be empty
+        if len(extracted_list) == 1:
+            extracted = extracted_list[0]
+        else:
+            raise RuntimeError('Too many items to extract.')
         formatted = self._format(extracted)
         return formatted
 

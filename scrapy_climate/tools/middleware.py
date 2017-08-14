@@ -100,32 +100,34 @@ def select(selector: SelectorList, string_selector: str) -> SelectorList:
 
 
 def childes(selector: SelectorList,
-            parent_tag: str,
-            child_tag: str ='',
-            no_selector_string: str =None) -> SelectorList:
-    if not isinstance(child_tag, str):
-        raise TypeError('Given `child_tag` is not `str` object.')
+            parent_tag: str,) -> SelectorList:
     if not isinstance(parent_tag, str):
         raise TypeError('Given `parent_tag` is not `str` object.')
-    if no_selector_string is not None and not isinstance(no_selector_string, str):
-        raise TypeError('Given `no_selector_string` is not `str` object.')
-    childes = []
-    started_iteration = False
+    childes_selector = SelectorList()
+    iterate_selector_string_template = parent_tag + ' > :nth-child({i})'
     i = 1
-    # prepare string_selector
-    string_selector_template = '{parent_tag} > {child_tag}'.format(
-        parent_tag=parent_tag, child_tag=child_tag,
-    ) + ':nth-child({i})'
-    if no_selector_string:
-        string_selector_template += ':not({})'.format(no_selector_string)
     # starting the iteration
-    # FIXME: first - collect all childes, second - select
     while True:
-        child = selector.css(string_selector_template.format(i=i))
-        i += 1
+        child = selector.css(iterate_selector_string_template.format(i=i))
         if child:
-            started_iteration = True
-            childes.append(child)
-        elif started_iteration:
-            break
-    return SelectorList(childes)
+            childes_selector.append(child)
+            i += 1
+        else:
+            return childes_selector
+
+
+def page_name(path: str) -> str:
+    # 'a/b/c-d.e%A0.html' -> 'c-d.e%A0'
+    return path.split('/')[-1][:-5]
+
+
+def number_in_last_folder(path: str) -> str:
+    # 'a/b/c/12345-d-e-f.html' -> '12345'
+    if path.endswith('/'):
+        path = path[:-1]
+    return path.split('/')[-1].split('-')[0]
+
+
+def last_folder(path: str) -> str:
+    # 'a/b/c/d' -> 'd'
+    return path.split('/')[-1]

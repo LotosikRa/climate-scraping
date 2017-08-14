@@ -40,6 +40,15 @@ logger.setLevel(logging.DEBUG)
 LOCAL_EMPTY_INDEX = 'LocalEmptyIndex'
 
 
+class IndexesContainer(frozenset):
+
+    def __repr__(self):
+        return '<Indexes: {}>'.format(self)
+
+    def __str__(self):
+        return ', '.join(self)
+
+
 class ExtractManager:
 
     def __init__(self, link_extractor: LinkExtractor =None,
@@ -72,9 +81,6 @@ class SingleSpider(Spider):
 
     What must be implemented for usage?
     * class fields: `name`, `_start_path`, `_start_domain`, `_scheme`
-    * class fields from mixins: `_css_selector_article`,
-    `_css_selector_news_list`, `xpath_selector_list_header`,
-    `_xpath_selector_list_tags`, `_xpath_selector_path_or_url`
     * methods: `_convert_path_to_index`
 
     How it works at all:
@@ -123,7 +129,7 @@ class SingleSpider(Spider):
 
     def __init__(self, *args, **kwargs):
         self.cloud = None
-        self._scraped_indexes = []
+        self._scraped_indexes = frozenset()
         # call it to check
         self.extract_manager
         super().__init__(*args, **kwargs)
@@ -138,12 +144,12 @@ class SingleSpider(Spider):
         :return: None
         """
         self.cloud = cloud
-        # use `list()` here because we will iterate over
-        # `self._scraped_indexes` many times and iterating now might reduce
-        # the traffic
-        self._scraped_indexes = list(cloud.fetch_week_indexes())
+        # use `frozenset` here because we will iterate over
+        # `self._scraped_indexes` many times and iterating right now might
+        # reduce the traffic
+        self._scraped_indexes = IndexesContainer(cloud.fetch_week_indexes())
         # log it
-        logger.info('Scraped indexes: ' + self._scraped_indexes.__repr__())
+        logger.info('Scraped indexes: {};'.format(self._scraped_indexes))
 
     # =================
     #  "parse" methods
