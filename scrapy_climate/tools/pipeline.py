@@ -3,7 +3,7 @@ import logging
 from .item import ArticleItem
 from .args import options
 from .cloud import CloudInterface
-from .spider import SingleSpider
+from .spider import SingleSpider, TestingSpider
 from .storage import StorageMaster, StorageSession
 
 
@@ -29,8 +29,11 @@ class StoragePipeline(object):
 
     def open_spider(self, spider: SingleSpider):
         if USE_CLOUD:
-            self.cloud = CloudInterface()
-            spider.connect_cloud(self.cloud)
+            if isinstance(spider, SingleSpider):
+                self.cloud = CloudInterface()
+                spider.connect_cloud(self.cloud)
+            elif isinstance(spider, TestingSpider):
+                pass
         if ENABLE_STORAGE:
             self.storage_session = StorageSession(
                 StorageMaster().get_worksheet_by_spider(spider), spider)

@@ -9,6 +9,9 @@ from scrapy_climate import settings as s
 from .args import options
 
 
+COLUMNS_TUPLE = ('url', 'header', 'tags', 'text', 'date', 'index')
+
+
 def _to_bool(string: str) -> bool:
     if string in ['True', '1']:
         return True
@@ -130,9 +133,7 @@ class StorageSession:
 class Row:
     """ Place to configure fields order in a table"""
 
-    columns_order = ['url', 'header', 'tags', 'text', 'date', 'index']
-    hyperlink_template = '=HYPERLINK("{link}";"{text}")'
-    format_hyperlinks = False
+    columns_order = COLUMNS_TUPLE
     empty_cell = '- - -'
 
     def __init__(self, item: scrapy.item.Item or dict = None,
@@ -152,27 +153,5 @@ class Row:
         lst = []
         for column in self.columns_order:
             value = self.item[column]
-            if column in ['text'] and self.format_hyperlinks:
-                value = self.format_hyperlink(value)
             lst.append(value)
         return lst
-
-    def format_hyperlink(self, string: str) -> str:
-        # TODO: use `regex`
-        try:
-            text_open = string.find('[')
-            text_close = text_open + string[text_open:].find(']')
-            link_open = text_close + 1
-            link_close = link_open + string[link_open:].find(')')
-            assert -1 < text_open < text_close < link_open < link_close
-            assert string[link_open] == '('
-            text = string[text_open + 1: text_close]
-            link = string[link_open + 1: link_close]
-            string_before = string[:text_open]
-            string_after = string[link_close + 1:]
-            hyperlink = self.hyperlink_template.format(link=link, text=text)
-            new_string = string_before + hyperlink + string_after
-        except AssertionError:
-            return string
-        else:
-            return new_string

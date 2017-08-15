@@ -28,6 +28,7 @@ from scrapy.http import Response, Request
 from .item import ArticleItem
 from .cloud import CloudInterface
 from .parser import Parser, MediaCounter, ElementsChain
+from .storage import COLUMNS_TUPLE
 from .extractor import (
     CSSExtractor,
     LinkExtractor,
@@ -344,3 +345,11 @@ class SingleSpider(Spider):
         else:
             raise NotImplementedError('Need to define "{}" field.'
                                       .format(field_name))
+
+
+class TestingSpider(Spider):
+
+    _message = 'testing'
+
+    def parse(self, response: Response):
+        yield ArticleItem(**{key: self._message for key in COLUMNS_TUPLE})
