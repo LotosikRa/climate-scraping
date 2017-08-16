@@ -29,6 +29,7 @@ from .item import ArticleItem
 from .cloud import CloudInterface
 from .parser import Parser, MediaCounter, ElementsChain
 from .storage import COLUMNS_TUPLE
+from .config import PROXY_LIST_URL
 from .extractor import (
     CSSExtractor,
     LinkExtractor,
@@ -55,7 +56,7 @@ class IndexesContainer(frozenset):
 
 class ProxyManager:
 
-    list_of_proxies_url = 'https://proxy-spider.com/api/proxies.example.txt'
+    list_of_proxies_url = PROXY_LIST_URL
 
     def __init__(self):
         response = requests.get(self.list_of_proxies_url)

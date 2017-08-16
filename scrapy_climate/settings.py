@@ -78,7 +78,3 @@ HTTPCACHE_EXPIRATION_SECS = 24 * 60 * 60
 HTTPCACHE_DIR = 'httpcache'
 HTTPCACHE_IGNORE_HTTP_CODES = []
 HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
-
-# config json files
-GOOGLE_API_SECRET_FILENAME = 'client-secret.json'
-OPTIONS_FILENAME = 'options.json'

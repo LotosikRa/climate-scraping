@@ -1,7 +1,7 @@
 from scrapinghub import ScrapinghubClient
 from scrapinghub.client.spiders import Spider
 
-from .args import options
+from .args import config
 
 import time
 import datetime
@@ -15,8 +15,8 @@ class CloudInterface:
     """
 
     def __init__(self):
-        self.client = ScrapinghubClient(options.api_key)
-        self.project = self.client.get_project(options.current_project_id)
+        self.client = ScrapinghubClient(config.api_key)
+        self.project = self.client.get_project(config.current_project_id)
         self.spider = self._get_current_spider()
 
     def _get_current_spider(self) -> Spider:
@@ -27,7 +27,7 @@ class CloudInterface:
         """
         for spider_dict in self.project.spiders.list():
             spider = self.project.spiders.get(spider_dict['id'])
-            if spider.key.split('/')[1] == options.current_spider_id:
+            if spider.key.split('/')[1] == config.current_spider_id:
                 return spider
         else:
             raise RuntimeError('No spider found.')

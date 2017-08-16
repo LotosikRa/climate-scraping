@@ -2,6 +2,17 @@
 
 scrapinghub project for scraping news from https://www.gismeteo.ua/news/
 
+## Status
+
+Now codebase isn't stable and must be refactored into standalone library 
+to be use Scrapy's design features like Extensions, Middlewares etc.
+
+Commit history isn't good too, because locally I have some spiders that uses
+this API. And I will implement new features only when I need them for them.
+
+When current refactoring iteration will end, I will end this repository, move 
+all it's API to library and use it as Extension/Middleware...
+
 ## Usage
 
 Project is writen on Python 3 (tested on 3.5).
@@ -23,7 +34,7 @@ Define your project id for each `shub deploy` call, or edit `scrapinghub.yml`.
 
 #### Running
 
-To run spider you need to create `options.json` in `scrapy_climate` folder.
+To run spider you need to create `config.json` in `scrapy_climate` folder.
 Use JFON format to define variables like:
 ```
 {
@@ -31,7 +42,7 @@ Use JFON format to define variables like:
   "SCRAPY_CLOUD_PROJECT_ID": "<scrapy_cloud_project_id>",
   "SPREADSHEET_TITLE": "<google_drive_spreadsheet_title>",
   "SPIDER_TO_WORKSHEET_DICTIONARY": {
-    "gismeteo": 1
+    "testing": 0,
     "<spider>": <worksheet_id_starting_from_zero>
   }
 }
@@ -44,7 +55,7 @@ This file is ignored by git, but will be deployed to ScrapingHub.
 Pipeline gives items to StorageMaster that
 appends them to defined in spider `arguments` Google Drive Sheet ordered by
 url, header, tags and body of article to worsheet that defined for currently
-running spider in `options.json`
+running spider in `config.json`
 worksheet (so it must be created before, or spider will raise an RuntimeError), and when
 all items where added, master ends his work with a row that contains
 url to job on ScrapingHub, CPU datetime, number of scraped articles

@@ -1,4 +1,4 @@
-from .args import options
+from .args import config
 from .cloud import CloudInterface
 from .extractor import (
     TagsExtractor,

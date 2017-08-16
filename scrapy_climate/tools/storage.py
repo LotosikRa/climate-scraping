@@ -5,8 +5,7 @@ import gspread
 import scrapy
 from oauth2client.service_account import ServiceAccountCredentials as Creds
 
-from scrapy_climate import settings as s
-from .args import options
+from .config import cfg
 
 
 COLUMNS_TUPLE = ('url', 'header', 'tags', 'text', 'date', 'index')
@@ -23,13 +22,13 @@ def _to_bool(string: str) -> bool:
 
 class StorageMaster:
 
-    secret_file_name = s.GOOGLE_API_SECRET_FILENAME
+    secret_file_name = cfg.GOOGLE_API_SECRET_FILENAME
 
-    sheet_name = options.spreadsheet_title
-    spider_to_worksheet_dict = options.spider_to_worksheet_dict
+    sheet_name = cfg.spreadsheet_title
+    spider_to_worksheet_dict = cfg.spider_to_worksheet_dict
 
     def __init__(self):
-        self._path_to_secret = options.path_to_config_file(self.secret_file_name)
+        self._path_to_secret = cfg.path_to_config_file(self.secret_file_name)
         self._credentials = self._get_credentials()
         self._client = self._get_client()
         self.spreadsheet = self._client.open(self.sheet_name)
@@ -57,26 +56,26 @@ class StorageMaster:
 class StorageSession:
 
     empty_cell = '-----'
-    open_template = options.storage_open_format
-    close_template = options.storage_close_format
-    date_format = options.storage_datefmt
+    open_template = cfg.storage_open_format
+    close_template = cfg.storage_close_format
+    date_format = cfg.storage_datefmt
 
-    open_line = _to_bool(options.storage_close_line)
-    close_line = _to_bool(options.storage_open_line)
+    open_line = _to_bool(cfg.storage_close_line)
+    close_line = _to_bool(cfg.storage_open_line)
 
     def __init__(self, worksheet: gspread.Worksheet, spider: scrapy.spiders.Spider):
         self._spider = spider
         self._worksheet = worksheet
         self._rows = None
         self._job_url = 'https://app.scrapinghub.com/p/{project_id}/{spider_id}/{job_id}'.format(
-            project_id=options.current_project_id,
-            spider_id=options.current_spider_id,
-            job_id=options.current_job_id,
+            project_id=cfg.current_project_id,
+            spider_id=cfg.current_spider_id,
+            job_id=cfg.current_job_id,
         )
 
     def open_session(self):
         logging.debug('<<< Session for #{spider_id} spider in "{worksheet_title}" worksheet STARTed.'.format(
-            spider_id=options.current_spider_id,
+            spider_id=cfg.current_spider_id,
             worksheet_title=self._worksheet.title,
         ))
         if self.open_line:
@@ -92,7 +91,7 @@ class StorageSession:
             self._add_close_row()
         self._write_data()
         logging.debug('>>> Session for #{spider_id} spider in "{worksheet_title}" worksheet ENDed.'.format(
-            spider_id=options.current_spider_id,
+            spider_id=cfg.current_spider_id,
             worksheet_title=self._worksheet.title,
         ))
 

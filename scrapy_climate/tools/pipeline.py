@@ -1,7 +1,7 @@
 import logging
 
 from .item import ArticleItem
-from .args import options
+from .args import config
 from .cloud import CloudInterface
 from .spider import SingleSpider, TestingSpider
 from .storage import StorageMaster, StorageSession
@@ -17,8 +17,8 @@ def _to_boolean(option: str) -> bool:
                            .format(option))
 
 
-ENABLE_STORAGE = _to_boolean(options.enable_gspread)
-USE_CLOUD = _to_boolean(options.use_cloud)
+ENABLE_STORAGE = _to_boolean(config.enable_gspread)
+USE_CLOUD = _to_boolean(config.use_cloud)
 
 
 class StoragePipeline(object):

@@ -107,4 +107,4 @@ ENV/
 client-secret.json
 
 # default settings
-options.json
+config.json

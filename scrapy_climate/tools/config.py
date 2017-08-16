@@ -2,10 +2,18 @@ import json
 import os
 import sys
 
-from scrapy_climate import settings as s
+from scrapy_climate import settings
 
-
+PROXY_LIST_URL = 'https://proxy-spider.com/api/proxies.example.txt'
 JOBKEY_DEFAULT = '0/0/0'
+MODULE_FILE_LEVEL = 3
+
+# config json files
+GOOGLE_API_SECRET_FILENAME = 'client-secret.json'  # library-depend
+OPTIONS_FILENAME = 'config.json'
+
+# variable names
+_JOBKEY = 'SHUB_JOBKEY'
 _DEVMODE = 'DEVMODE'
 _STORAGE_DATEFMT = 'STORAGE_DATEFMT'
 _STORAGE_OPEN_FORMAT = 'STORAGE_OPEN_FORMAT'
@@ -14,13 +22,14 @@ _STORAGE_OPEN_LINE = 'STORAGE_OPEN_LINE'
 _STORAGE_CLOSE_LINE = 'STORAGE_CLOSE_LINE'
 
 
-class ArgumentsMaster:
+class SettingsMaster:
     """ Class for control of given at start arguments, and some environment
     variables. Arguments can be get from spider too.
     **NOTE**: contains only `str` objects."""
 
-    jobkey_env_varname = 'SHUB_JOBKEY'
-    options_filename = s.OPTIONS_FILENAME
+    jobkey_env_varname = _JOBKEY
+    options_filename = OPTIONS_FILENAME
+    default_file_level = MODULE_FILE_LEVEL
 
     def __init__(self):
         self._args_dict = self._parse_arguments()
@@ -80,16 +89,20 @@ class ArgumentsMaster:
         return dictionary
 
     def _parse_file(self) -> dict:
-        return json.load(open(self.path_to_config_file(self.options_filename), 'r'))
+        return json.load(open(self.path_to_config_file(self.options_filename)))
 
     @staticmethod
-    def path_to_config_file(file_name: str) -> str:
-        # function that returns parent directory for given path
-        def p(path):
-            return os.path.abspath(os.path.join(path, os.pardir))
-        # 3 times up
-        return os.path.join(p(p(p(__file__))), file_name)
+    def path_to_config_file(file_name: str,
+                            file_level: int =default_file_level) -> str:
+        path = __file__
+        for _ in range(file_level):
+            # wrap with parent directory
+            path = os.path.abspath(os.path.join(path, os.pardir))
+        return os.path.join(path, file_name)
 
+    # ============
+    #  properties
+    # ============
     @property
     def current_project_id(self) -> str:
         return self._shub_jobkey['CURRENT_PROJECT_ID']
@@ -166,4 +179,4 @@ class ArgumentsMaster:
         return self.get_value('SCRAPY_CLOUD_API_KEY')
 
 
-options = ArgumentsMaster()
+cfg = SettingsMaster()
